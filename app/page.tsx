@@ -21,7 +21,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('Loading...')
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL)
+    fetch(process.env.NEXT_PUBLIC_API_URL as any)
       .then(res => res.json())
       .then(data => {
         setPoints(data.points || [])
