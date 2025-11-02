@@ -1,65 +1,112 @@
-import Image from "next/image";
+'use client'
+
+import dynamic from 'next/dynamic'
+import { useEffect, useState } from 'react'
+import 'leaflet/dist/leaflet.css'
+
+// Dynamically import Leaflet components to prevent SSR window errors
+const MapContainer = dynamic(() => import('react-leaflet').then(m => m.MapContainer), { ssr: false })
+const TileLayer = dynamic(() => import('react-leaflet').then(m => m.TileLayer), { ssr: false })
+const CircleMarker = dynamic(() => import('react-leaflet').then(m => m.CircleMarker), { ssr: false })
+const Tooltip = dynamic(() => import('react-leaflet').then(m => m.Tooltip), { ssr: false })
+
+interface Point {
+  lat: number
+  lon: number
+  value: number
+}
 
 export default function Home() {
+  const [points, setPoints] = useState<Point[]>([])
+  const [lastUpdated, setLastUpdated] = useState<string>('Loading...')
+
+  useEffect(() => {
+    fetch(process.env.NEXT_PUBLIC_API_URL)
+      .then(res => res.json())
+      .then(data => {
+        setPoints(data.points || [])
+        if (data.timestamp) {
+          const t = new Date(data.timestamp * 1000)
+          setLastUpdated(t.toLocaleString())
+        } else {
+          setLastUpdated(new Date().toLocaleString())
+        }
+      })
+      .catch(err => {
+        console.error(err)
+        setLastUpdated('Failed to load data')
+      })
+  }, [])
+
+  const getColor = (value: number) => {
+    if (value < 10) return 'blue'
+    if (value < 20) return 'green'
+    if (value < 30) return 'yellow'
+    if (value < 40) return 'orange'
+    return 'red'
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="h-screen w-screen relative">
+      {/* Header */}
+      <div className="absolute top-0 left-0 w-full bg-black bg-opacity-70 text-white p-4 z-[1000] flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-lg sm:text-xl font-semibold">MRMS Weather Radar Display (RALA)</h1>
+        <div className="text-sm text-gray-300">
+          Data Source: <a href="https://mrms.ncep.noaa.gov/" className="text-blue-400 underline" target="_blank">MRMS</a> |
+          Last Updated: {lastUpdated}
+        </div>
+      </div>
+
+      {/* Map */}
+      <MapContainer
+        center={[39, -98]}
+        zoom={5}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer
+          attribution="© OpenStreetMap contributors"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        {points.map((p, i) => (
+          <CircleMarker
+            key={i}
+            center={[p.lat, p.lon]}
+            radius={4}
+            pathOptions={{ color: getColor(p.value) }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <Tooltip>
+              Reflectivity: {p.value} dBZ
+              <br />
+              Lat: {p.lat.toFixed(2)} | Lon: {p.lon.toFixed(2)}
+            </Tooltip>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+
+      {/* Legend */}
+      <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white text-sm p-3 rounded-lg z-[1000]">
+        <h2 className="font-semibold text-base mb-1">Reflectivity (dBZ)</h2>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-5 h-3 bg-blue-500 inline-block"></span> &lt; 10
         </div>
-      </main>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-5 h-3 bg-green-500 inline-block"></span> 10–20
+        </div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-5 h-3 bg-yellow-400 inline-block"></span> 20–30
+        </div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-5 h-3 bg-orange-500 inline-block"></span> 30–40
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-5 h-3 bg-red-500 inline-block"></span> &gt; 40
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 w-full text-center bg-black bg-opacity-70 text-gray-300 text-xs p-2 z-[1000]">
+        Built by Varinder Singh | MRMS Radar Coding Challenge — Live Reflectivity at Lowest Altitude
+      </div>
     </div>
-  );
+  )
 }
