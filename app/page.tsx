@@ -21,7 +21,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('Loading...')
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_API_URL as any)
+    fetch(process.env.NEXT_PUBLIC_API_URL as any+"/radar")
       .then(res => res.json())
       .then(data => {
         setPoints(data.points || [])
